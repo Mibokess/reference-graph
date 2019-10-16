@@ -1,0 +1,63 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ContentModelStore">
+    <e p="C:\Users\Mike\.Rider2019.2\system\extResources" t="IncludeRecursive" />
+    <e p="C:\Users\Mike\.Rider2019.2\system\resharper-host\local\Transient\ReSharperHost\v192\SolutionCaches\_.19.00" t="ExcludeRecursive" />
+    <e p="C:\Users\Mike\Dev\academic-browser" t="IncludeRecursive">
+      <e p="_Imports.razor" t="Include" />
+      <e p="academic-browser.csproj" t="IncludeRecursive" />
+      <e p="App.razor" t="Include" />
+      <e p="bin" t="ExcludeRecursive" />
+      <e p="obj" t="ExcludeRecursive">
+        <e p="Debug" t="Include">
+          <e p="netstandard2.0" t="Include">
+            <e p="academic-browser.AssemblyInfo.cs" t="Include" />
+          </e>
+        </e>
+      </e>
+      <e p="packages" t="ExcludeRecursive" />
+      <e p="Pages" t="Include">
+        <e p="Counter.razor" t="Include" />
+        <e p="FetchData.razor" t="Include" />
+        <e p="Index.razor" t="Include" />
+      </e>
+      <e p="Program.cs" t="Include" />
+      <e p="Shared" t="Include">
+        <e p="MainLayout.razor" t="Include" />
+        <e p="NavMenu.razor" t="Include" />
+        <e p="SurveyPrompt.razor" t="Include" />
+      </e>
+      <e p="Startup.cs" t="Include" />
+      <e p="wwwroot" t="Include">
+        <e p="css" t="Include">
+          <e p="bootstrap" t="Include">
+            <e p="bootstrap.min.css" t="Include" />
+            <e p="bootstrap.min.css.map" t="Include" />
+          </e>
+          <e p="open-iconic" t="Include">
+            <e p="font" t="Include">
+              <e p="css" t="Include">
+                <e p="open-iconic-bootstrap.min.css" t="Include" />
+              </e>
+              <e p="fonts" t="Include">
+                <e p="open-iconic.eot" t="Include" />
+                <e p="open-iconic.otf" t="Include" />
+                <e p="open-iconic.svg" t="Include" />
+                <e p="open-iconic.ttf" t="Include" />
+                <e p="open-iconic.woff" t="Include" />
+              </e>
+            </e>
+            <e p="FONT-LICENSE" t="Include" />
+            <e p="ICON-LICENSE" t="Include" />
+            <e p="README.md" t="Include" />
+          </e>
+          <e p="site.css" t="Include" />
+        </e>
+        <e p="index.html" t="Include" />
+        <e p="sample-data" t="Include">
+          <e p="weather.json" t="Include" />
+        </e>
+      </e>
+    </e>
+  </component>
+</project>
