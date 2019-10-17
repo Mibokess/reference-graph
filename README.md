@@ -1,41 +1,50 @@
-# tailwindcss-svelte-starter
+# Svelte Tailwind Template
 
-A starter for building Svelte web apps with tailwindcss.
-
-## Getting Started
+## Get started
 
 ```bash
-git clone https://github.com/marcograhl/tailwindcss-svelte-starter
-```
-
-Then, install the dependencies:
-
-```bash
+git clone https://github.com/muhajirdev/svelte-tailwind-template
+cd svelte-tailwind-template
 npm install
 ```
 
-Use Tailwindcss (https://tailwindcss.com/)
-
-## Building and Developing
-
-### Build
-
-```bash
-npm run build
-```
-
-### Development
-
-Development mode will:
-
--  build on file change
--  serve locally at <code>localhost:5000</code>
--  live reload
+...then start [Rollup](https://rollupjs.org):
 
 ```bash
 npm run dev
 ```
 
-## Credits
+Navigate to [localhost:5000](http://localhost:5000). You should see your app running. Edit a component file in `src`, save it, and reload the page to see your changes.
 
-Inspired by [sveltejs/template](https://github.com/sveltejs/template)
+## Deploying to the web
+
+### With [now](https://zeit.co/now)
+
+Install `now` if you haven't already:
+
+```bash
+npm install -g now
+```
+
+Then, from within your project folder:
+
+```bash
+now
+```
+
+As an alternative, use the [Now desktop client](https://zeit.co/download) and simply drag the unzipped project folder to the taskbar icon.
+
+### With [surge](https://surge.sh/)
+
+Install `surge` if you haven't already:
+
+```bash
+npm install -g surge
+```
+
+Then, from within your project folder:
+
+```bash
+npm run build
+surge public
+```
