@@ -7,41 +7,100 @@
             </svg>
         </div>
     </div>
+    {#each titles as title (title.id)}
+        <div class="my-4">
+            <p>{title.content}</p>
+        </div>
+    {/each}
 </div>
 
 <script>
-    import axios from 'axios';
+    import 'whatwg-fetch';
+    
+    var titles = [];
 
     var inputValue = "";
     var baseUrl = 'https://api.labs.cognitive.microsoft.com/academic/v1.0';
-    $: dir = '/interpret?query=' + inputValue  + '&complete=0&count=10&model=latest';
-
+    $: intepretPath = '/interpret?query=' + inputValue  + '&complete=0&count=10&model=latest';
 
     function handleInput(event) {
         inputValue  = event.target.value;   
 
-        if (event.key == "Enter" && inputValue ) {            
-            const instance = axios.create({
-                baseURL: baseUrl,
-                timeout: 1000,
-                headers: {
-                    'Ocp-Apim-Subscription-Key': '554c1cf34356401ab6fc1dd31982f3ce',
-                    'Content-Type': 'application/json'
-                },
-            });
-
-            instance.get(dir)
-                .then(function (response) {
-                    console.log(response)
-                })
+        if (event.key == "Enter" && inputValue) {            
+            interpret().then(query => {
+                evaluate(query)
+            })
         }
     }
 
-    function callback(error, response, body) {
-        if (!error && response.statusCode == 200) {
-            var info = JSON.parse(body);
-            console.log(info.stargazers_count + " Stars");
-            console.log(info.forks_count + " Forks");
-        }
+    function evaluate(query) {
+        console.log(query)
+        var evaluatePath = "/evaluate?expr=" + query + "&attributes=Id,E";
+
+        fetchEvaluate(evaluatePath).then(evaluation => {
+            evaluation.entities.forEach(function(element) {
+                titles = [...titles, {id: element.Id, content: JSON.parse(element.E).DN}];
+            });
+        })
+    }
+
+    function fetchEvaluate(evaluatePath) {
+        return fetch(
+            baseUrl + evaluatePath,
+            {
+                method: 'GET',
+                mode: 'cors',
+                headers: new Headers({ 
+                    'Host': 'api.labs.cognitive.microsoft.com',
+                    'Connection': 'keep-alive',
+                    'Content-Type': 'application/json',
+                    'Ocp-Apim-Subscription-Key': "554c1cf34356401ab6fc1dd31982f3ce",
+                }),
+                cache: 'no-cache'
+            }
+        ).then(res => {
+            if (res.status >= 400) {
+                throw new Error("Bad response from server");
+            }
+            return res.json();
+        })
+        .catch(err => {
+            console.error(err);
+        });
+    }
+
+    function interpret() {
+        return fetchInterpret()
+            .then(res => {
+                return res.interpretations[0].rules[0].output.value;
+            })
+            .catch(err => {
+                console.error(err);
+            });
+    }
+
+    function fetchInterpret() {
+        return fetch(
+            baseUrl + intepretPath,
+            {
+                method: 'GET',
+                mode: 'cors',
+                headers: new Headers({ 
+                    'Host': 'api.labs.cognitive.microsoft.com',
+                    'Connection': 'keep-alive',
+                    'Content-Type': 'application/json',
+                    'Ocp-Apim-Subscription-Key': "554c1cf34356401ab6fc1dd31982f3ce",
+                }),
+                cache: 'no-cache'
+            }
+        ).then(res => {
+            if (res.status >= 400) {
+                throw new Error("Bad response from server");
+            }
+            return res.json();
+        })
+        .catch(err => {
+            console.error(err);
+        });
     }
 </script>
