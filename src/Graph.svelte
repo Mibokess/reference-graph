@@ -1,54 +1,83 @@
-<div id="graphDiv"></div>
+<div class="h-screen w-screen" id="graphDiv" on:click={loadGraph}></div>
 
 <script>
     import Viva from './vivagraph.js';
     
-    export let originalPaperId = 40134741;
+    export let originalPaperId;
+    export let subscriptionKey;
 
     const baseUrl = 'https://api.labs.cognitive.microsoft.com/academic/v1.0';
 
-    let paperGraph = {papers: [], links: new Map()};
+    function loadGraph(){
+        let paperGraph = { papers: new Map(), links: new Map() };
 
-    loadGraph();
-
-    async function loadGraph(){
-        await evaluatePaper(`Id=${originalPaperId}`, ['Id', 'Ti', 'RId', 'AA.AuN'], 0);
-
-        console.log('The papergraph');
-        generateGraph(paperGraph.papers, paperGraph.links);
+        evaluatePaper(paperGraph, `Id=${originalPaperId}`, 0).then(newPaperGraph => {
+            console.log('The papergraph');
+            console.log(newPaperGraph);
+            console.log(newPaperGraph.papers.length)
+            generateGraph(newPaperGraph.papers, newPaperGraph.links);
+        });
     }
 
-    function evaluatePaper(query, attributes, recursionDepth) {
-        let evaluatePath = "/evaluate?expr=" + query + "&attributes=" + attributes.join();
-
-        fetchEvaluate(evaluatePath)
+    function evaluatePaper(paperGraph, query, recursionDepth) {
+        console.log('enter evaluatePaper')
+        let evaluatePath = "/evaluate?expr=" + query + "&attributes=" + ['Id', 'Ti', 'AA.AuN', 'RId'].join();
+        
+        Promise.resolve(fetchEvaluate(evaluatePath)
             .then(evaluation => {
                 let paperEval = evaluation.entities[0];
+                let paper = paperFromPaperEval(paperEval);
+                
+                paperGraph.papers.set(paper.id, paper);
 
-                console.log(paperEval.Ti)
-                let paper = {
-                    id: paperEval.Id,
-                    title: paperEval.Ti,
-                    author: paperEval.AA.map(e => e.AuN).join(","),
-                    cardWidth: (paperEval.Ti.length * 7),
-                    cardHeight: 60
-                }
+                return paperEval;
+            }).then((paperEval) => {
+                Promise.resolve(evaluateRIds(paperGraph, recursionDepth, paperEval).then(newPaperGraph => {
+                    if (paperEval.Id == 40134741) console.log(paperGraph);
+                    return newPaperGraph;
+                }));
+            }));
+    }
 
-                paperGraph.papers.push(paper);
+    function evaluateRIds(paperGraph, recursionDepth, paperEval) { 
+        console.log('enter evaluateRIds')
+        return new Promise((resolve) => {
+            if (recursionDepth < 1 && paperEval.RId) { 
+                paperEval.RId.forEach(referencedPaperId => {
+                    paperGraph.links.set(paperEval.Id, referencedPaperId);
+                });
 
-                return { RId: paperEval.RId, paperEvalId: paperEval.Id };
-            })
-            .then(element => {
-                if (recursionDepth < 1) {
-                    element.RId.forEach(referencedPaperId => {
-                        evaluatePaper(`Id=${referencedPaperId}`, attributes, recursionDepth + 1);
-                        paperGraph.links.set(element.paperEvalId, referencedPaperId);
+                let newPaperGraphs = []
+                let requests = paperEval.RId.map(referencedPaperId => {
+                    return new Promise(resolve => {
+                        evaluatePaper(paperGraph, `Id=${referencedPaperId}`, recursionDepth + 1).then(newPaperGraph => {
+                            newPaperGraphs.push(newPaperGraph);
+                        });
                     });
-                } else {
-                    console.log('finished')
-                    return;
-                }
-            });
+                });
+
+                Promise.all(requests).then(() => {
+                    newPaperGraphs.reduce(function(paperGraph, newPaperGraph) {
+                        paperGraph.papers = new Map([...paperGraph.papers, ...newPaperGraph.papers]);
+                        paperGraph.links = new Map([...paperGraph.links, ...newPaperGraph.links]);
+                    });
+
+                    return paperGraph;
+                });
+            } else {
+                return paperGraph;
+            }
+        });
+    }
+
+    function paperFromPaperEval(paperEval) {
+        return {
+            id: paperEval.Id,
+            title: paperEval.Ti,
+            author: paperEval.AA.map(e => e.AuN).join(","),
+            cardWidth: (paperEval.Ti.length * 7),
+            cardHeight: 60
+        }
     }
 
     function fetchEvaluate(evaluatePath) {
@@ -61,7 +90,7 @@
                     'Host': 'api.labs.cognitive.microsoft.com',
                     'Connection': 'keep-alive',
                     'Content-Type': 'application/json',
-                    'Ocp-Apim-Subscription-Key': "554c1cf34356401ab6fc1dd31982f3ce",
+                    'Ocp-Apim-Subscription-Key': subscriptionKey,
                 }),
                 cache: 'no-cache'
             }
@@ -79,13 +108,14 @@
     function generateGraph(papers, links) {
         var graph = Viva.Graph.graph();
 
-        papers.forEach(paper => {
+        papers.forEach((id, paper, map) => {
+            console.log(paper)
             let url = generateSVGStringFromPaper(paper);
-            graph.addNode(paper.id, {url : url, cardWidth: paper.cardWidth, cardHeight: paper.cardHeight});
+            graph.addNode(paper.id, { url : url, cardWidth: paper.cardWidth, cardHeight: paper.cardHeight });
         });
         
-        links.forEach(function(paper2, paper1, map) {
-            graph.addLink(paper1, paper2);
+        links.forEach(function(paper2Id, paper1Id, map) {
+            graph.addLink(paper1Id, paper2Id);
         });
 
         var graphics = Viva.Graph.View.svgGraphics();

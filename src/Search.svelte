@@ -22,6 +22,8 @@
     import 'whatwg-fetch';
     import { createEventDispatcher } from 'svelte';
 
+    export let subscriptionKey;
+
 	const dispatch = createEventDispatcher();
     var titles = [];
 
@@ -62,7 +64,7 @@
                     'Host': 'api.labs.cognitive.microsoft.com',
                     'Connection': 'keep-alive',
                     'Content-Type': 'application/json',
-                    'Ocp-Apim-Subscription-Key': "554c1cf34356401ab6fc1dd31982f3ce",
+                    'Ocp-Apim-Subscription-Key': subscriptionKey,
                 }),
                 cache: 'no-cache'
             }
@@ -97,7 +99,7 @@
                     'Host': 'api.labs.cognitive.microsoft.com',
                     'Connection': 'keep-alive',
                     'Content-Type': 'application/json',
-                    'Ocp-Apim-Subscription-Key': "554c1cf34356401ab6fc1dd31982f3ce",
+                    'Ocp-Apim-Subscription-Key': subscriptionKey,
                 }),
                 cache: 'no-cache'
             }

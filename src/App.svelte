@@ -4,11 +4,11 @@
       <h1 class="text-3xl font-light">Paper Graph</h1>
     </div>
     <div class="flex justify-center h-full w-full mt-8 md:mt-12 lg:mt-16">
-      <Search on:clickedPaper={createGraph}/>
+      <Search subscriptionKey={subscriptionKey} on:clickedPaper={createGraph}/>
     </div>
   {:else}
     <div>  
-      <Graph originalPaperId={originalPaperId}/>
+      <Graph originalPaperId={originalPaperId} subscriptionKey={subscriptionKey}/>
     </div>
   {/if}
 </div>
@@ -18,7 +18,8 @@
   import Graph from './Graph.svelte';
   
   let clickedPaper = false;
-  let originalPaperId;
+  let originalPaperId = 40134741;
+  let subscriptionKey = "554c1cf34356401ab6fc1dd31982f3ce";
 
   function createGraph(event) {
     console.log(event.detail.text);
