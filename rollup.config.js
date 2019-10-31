@@ -24,7 +24,7 @@ export default {
       // enable run-time checks when not in production
       dev: !production,
       css: css => {
-        css.write('public/components.css');
+        css.write('public/bundle.css');
       }
     }),
     postcss({

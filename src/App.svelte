@@ -1,14 +1,16 @@
-<div class="h-screen w-screen content-center">
-  <div class="flex justify-center w-full pt-16">
-    <h1 class="text-3xl font-light">Paper Graph</h1>
-  </div>
-  <div class="flex justify-center h-full w-full mt-8 md:mt-12 lg:mt-16">
-    {#if clickedPaper}
+<div>
+  {#if clickedPaper}
+    <div class="flex justify-center w-full pt-16">
+      <h1 class="text-3xl font-light">Paper Graph</h1>
+    </div>
+    <div class="flex justify-center h-full w-full mt-8 md:mt-12 lg:mt-16">
       <Search on:clickedPaper={createGraph}/>
-    {:else}
+    </div>
+  {:else}
+    <div>  
       <Graph originalPaperId={originalPaperId}/>
-    {/if}
-  </div>
+    </div>
+  {/if}
 </div>
 
 <script>

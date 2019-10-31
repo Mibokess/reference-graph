@@ -26,7 +26,7 @@
     var titles = [];
 
     var inputValue = "";
-    var baseUrl = 'https://api.labs.cognitive.microsoft.com/academic/v1.0';
+    const baseUrl = 'https://api.labs.cognitive.microsoft.com/academic/v1.0';
     $: intepretPath = '/interpret?query=' + inputValue  + '&complete=0&count=10&model=latest';
 
     function handleInput(event) {
