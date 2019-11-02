@@ -10,8 +10,8 @@
     {#if titles}
         <div class="flex flex-col">
             {#each titles as title (title.id)}
-                <div on:click="{e => clickedPaper(title.id)}" class="bg-white rounded-lg shadow-xl p-4 my-2 hover:shadow-2xl hover:bg-gray-100">
-                    {title.content}
+                <div on:click="{e => clickedPaper(title.id)}" class="bg-white rounded-lg shadow-xl p-4 my-2 hover:shadow-2xl hover:bg-blue-100">
+                    <p class="font-light">{title.content}</p>
                 </div>
             {/each}
         </div>
@@ -34,7 +34,8 @@
     function handleInput(event) {
         inputValue  = event.target.value;   
 
-        if (event.key == "Enter" && inputValue) {            
+        if (event.key == "Enter" && inputValue) { 
+            titles = [];           
             interpret().then(query => {
                 evaluate(query)
             })
@@ -45,12 +46,10 @@
         let attributes = ['Id', 'E'];
         let evaluatePath = "/evaluate?expr=" + query + "&attributes=" + attributes.join();
 
-        console.log(query)
         fetchEvaluate(evaluatePath).then(evaluation => {
-            evaluation.entities.forEach(function(element) {
+            evaluation.entities.map(element => {
                 titles = [...titles, {id: element.Id, content: JSON.parse(element.E).DN}];
             });
-            console.log(titles);
         });
     }
 

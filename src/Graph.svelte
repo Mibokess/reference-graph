@@ -1,29 +1,71 @@
-<div class="h-screen w-screen" id="graphDiv" on:click={loadGraph}></div>
+{#if !graph}
+    <div class="flex justify-center w-full pt-16">
+      <h1 class="text-3xl font-light">Sending requests ({numberOfSentRequests})</h1>
+    </div>
+{/if}
+<div id="graphDiv" on:mousemove={handleMouseMove} on:click={handeClick}>
+    {#if tooltip.visible}
+        <div class="tooltip z-10 absolute rounded shadow-xl bg-white px-4 py-2 max-w-4xl" style="left: {tooltip.x}px; top: {tooltip.y - 50}px">
+            <p class="text-lg font-bold text-center capitalize overflow-hidden">{tooltip.title}</p>
+            <p class="text-sm text-center capitalize overflow-hidden">{tooltip.author}</p>
+        </div>
+    {/if}
+</div>
 
 <script>
+    import { onMount } from 'svelte';
     import Viva from './vivagraph.js';
     
-    export let originalPaperId;
+    export let originalPaperId = 40134741;
     export let subscriptionKey;
 
     const baseUrl = 'https://api.labs.cognitive.microsoft.com/academic/v1.0';
+    const maxNumberOfRequests = 200;
+    const maxReferenceChildren = 10;
+    const paperUrl = 'https://academic.microsoft.com/paper/';
+
+    let numberOfSentRequests = 0;
+    let graph;
+    let tooltip = {
+        visible: false,
+        text: '',
+        author: '',
+        id: '',
+        x: 0,
+        y: 0
+    }
+
+    onMount(() => {
+        loadGraph();
+    });
 
     function loadGraph(){
         let paperGraph = { papers: new Map(), links: new Map() };
+        
+        if (localStorage.getItem(originalPaperId) === null) {
+            evaluatePaper(paperGraph, `Id=${originalPaperId}`, 0).then(newPaperGraph => {
+                localStorage.setItem(`${originalPaperId}`, JSON.stringify({ 
+                    papers: Array.from(newPaperGraph.papers.entries()), 
+                    links: Array.from(newPaperGraph.links.entries()) 
+                }));
+                console.log(newPaperGraph.papers.size)
 
-        evaluatePaper(paperGraph, `Id=${originalPaperId}`, 0).then(newPaperGraph => {
-            console.log('The papergraph');
-            console.log(newPaperGraph);
-            console.log(newPaperGraph.papers.length)
-            generateGraph(newPaperGraph.papers, newPaperGraph.links);
-        });
+                generateGraph(newPaperGraph.papers, newPaperGraph.links);
+            });
+        } else {
+            let localPaperGraph = JSON.parse(localStorage.getItem(`${originalPaperId}`));
+            
+            paperGraph.papers = new Map(localPaperGraph.papers);
+            paperGraph.links = new Map(localPaperGraph.links);
+
+            generateGraph(paperGraph.papers, paperGraph.links);
+        }
     }
 
-    function evaluatePaper(paperGraph, query, recursionDepth) {
-        console.log('enter evaluatePaper')
+    function evaluatePaper(paperGraph, query) {
         let evaluatePath = "/evaluate?expr=" + query + "&attributes=" + ['Id', 'Ti', 'AA.AuN', 'RId'].join();
-        
-        Promise.resolve(fetchEvaluate(evaluatePath)
+
+        return fetchEvaluate(evaluatePath)
             .then(evaluation => {
                 let paperEval = evaluation.entities[0];
                 let paper = paperFromPaperEval(paperEval);
@@ -31,56 +73,61 @@
                 paperGraph.papers.set(paper.id, paper);
 
                 return paperEval;
-            }).then((paperEval) => {
-                Promise.resolve(evaluateRIds(paperGraph, recursionDepth, paperEval).then(newPaperGraph => {
-                    if (paperEval.Id == 40134741) console.log(paperGraph);
-                    return newPaperGraph;
-                }));
-            }));
+            }).then(paperEval => {
+                if (paperEval.RId) {
+                    paperEval.RId = paperEval.RId.slice(0, maxReferenceChildren);
+                    
+                    if (numberOfSentRequests + paperEval.RId.length > maxNumberOfRequests) {
+                        paperEval.RId = paperEval.RId.slice(0, maxNumberOfRequests - numberOfSentRequests);
+                    }
+                }
+
+                if (paperEval.RId) {                    
+                    paperEval.RId.forEach(referencedPaperId => {
+                        if (!paperGraph.links.has(paperEval.Id)) {
+                            paperGraph.links.set(paperEval.Id, [referencedPaperId]);
+                        } else {
+                            paperGraph.links.get(paperEval.Id).push(referencedPaperId);
+                        }
+                    });
+
+                    return evaluateRIds(paperGraph, paperEval);
+                }
+
+                return [paperGraph];
+            }).then(newPaperGraphs => {
+                newPaperGraphs.map(newPaperGraph => {
+                    paperGraph.papers = new Map([...paperGraph.papers, ...newPaperGraph.papers]);
+                    paperGraph.links = new Map([...paperGraph.links, ...newPaperGraph.links]);
+                });
+            
+                return paperGraph;
+            });
     }
 
-    function evaluateRIds(paperGraph, recursionDepth, paperEval) { 
-        console.log('enter evaluateRIds')
-        return new Promise((resolve) => {
-            if (recursionDepth < 1 && paperEval.RId) { 
-                paperEval.RId.forEach(referencedPaperId => {
-                    paperGraph.links.set(paperEval.Id, referencedPaperId);
-                });
-
-                let newPaperGraphs = []
-                let requests = paperEval.RId.map(referencedPaperId => {
-                    return new Promise(resolve => {
-                        evaluatePaper(paperGraph, `Id=${referencedPaperId}`, recursionDepth + 1).then(newPaperGraph => {
-                            newPaperGraphs.push(newPaperGraph);
-                        });
-                    });
-                });
-
-                Promise.all(requests).then(() => {
-                    newPaperGraphs.reduce(function(paperGraph, newPaperGraph) {
-                        paperGraph.papers = new Map([...paperGraph.papers, ...newPaperGraph.papers]);
-                        paperGraph.links = new Map([...paperGraph.links, ...newPaperGraph.links]);
-                    });
-
-                    return paperGraph;
-                });
-            } else {
-                return paperGraph;
-            }
+    function evaluateRIds(paperGraph, paperEval) { 
+        let requests = paperEval.RId.map(referencedPaperId => {
+            return new Promise(resolve => {
+                resolve(evaluatePaper(paperGraph, `Id=${referencedPaperId}`));
+            });
         });
+
+        return Promise.all(requests);
     }
 
     function paperFromPaperEval(paperEval) {
         return {
             id: paperEval.Id,
             title: paperEval.Ti,
-            author: paperEval.AA.map(e => e.AuN).join(","),
+            author: paperEval.AA.map(e => e.AuN).join(", "),
             cardWidth: (paperEval.Ti.length * 7),
             cardHeight: 60
         }
     }
 
     function fetchEvaluate(evaluatePath) {
+        numberOfSentRequests += 1;
+
         return fetch(
             baseUrl + evaluatePath,
             {
@@ -106,35 +153,42 @@
     }
 
     function generateGraph(papers, links) {
-        var graph = Viva.Graph.graph();
+        graph = Viva.Graph.graph();
 
-        papers.forEach((id, paper, map) => {
-            console.log(paper)
-            let url = generateSVGStringFromPaper(paper);
-            graph.addNode(paper.id, { url : url, cardWidth: paper.cardWidth, cardHeight: paper.cardHeight });
+        papers.forEach((paper, id, map) => {
+            let imageUrl = 'test' //generateSVGStringFromPaper(paper);
+            graph.addNode(paper.id, { imageUrl : imageUrl, cardWidth: paper.cardWidth, cardHeight: paper.cardHeight, title: paper.title, id: paper.id, author: paper.author });
         });
         
-        links.forEach(function(paper2Id, paper1Id, map) {
-            graph.addLink(paper1Id, paper2Id);
+        links.forEach((papersReferenced, paperId, map) => {
+            papersReferenced.map(referencedPaperId => {
+                graph.addLink(paperId, referencedPaperId);
+            });
         });
 
-        var graphics = Viva.Graph.View.svgGraphics();
-        graphics.node(function(node) {
+        let graphics = Viva.Graph.View.svgGraphics();
+        
+        graphics.node((node) => {
             return Viva.Graph
-                .svg('image')
-                    .attr('width', node.data.cardWidth)
-                    .attr('height', node.data.cardHeight)
-                    .link(node.data.url); 
+                .svg('rect')
+                    .attr('width', 6)
+                    .attr('height', 6)
+                    .attr('id', node.data.id)
+                    .attr('fill', '#1E90FF')
+                    .attr('class', 'node')
+                    .link(node.data.imageUrl); 
             })
-            .placeNode(function(nodeUI, pos){
-                // Shift image to let links go to the center:
-                nodeUI.attr('x', pos.x - 12).attr('y', pos.y - 12);
+            .placeNode((nodeUI, pos) => {
+                nodeUI.attr('x', pos.x - 3).attr('y', pos.y - 3);
             });
 
-        var renderer = Viva.Graph.View.renderer(graph, {
-                graphics : graphics
-            });
+        let renderer = Viva.Graph.View.renderer(graph, {
+            container: document.getElementById('graphDiv'),
+            graphics : graphics,
+        });
         renderer.run();
+
+        document.getElementById(originalPaperId).setAttribute('fill', '#012587');
     }
 
     function generateSVGStringFromPaper(paper) {
@@ -173,11 +227,86 @@
 
         return url;
     }
+
+    function handleMouseMove(event) {
+        if(!graph) return;
+
+        const nodeId = getNodeIdFromDOM(event.target, 'node');
+        if (!nodeId) {
+            tooltip.visible = false;
+            return;
+        }
+
+        clearHighlight();
+
+        forAll(document.getElementById('graphDiv'), `path[data-from="${nodeId}"], path[data-to="${nodeId}"]`, addClass('hl'));
+
+        const data = graph.getNode(nodeId).data;
+        showTooltip(event.target, data);
+    }
+
+    function showTooltip(el, data) {
+        const rect = el.getBoundingClientRect();
+        tooltip.title = data.title;
+        tooltip.author = data.author;
+        tooltip.id = data.id;
+        tooltip.x = rect.left + rect.width / 2;
+        tooltip.y = rect.top - 42 / 2;
+        tooltip.visible = true;
+    }
+
+    function forAll(scene, query, action) {
+        (Array.from(scene.querySelectorAll(query))).forEach(action);
+    }
+
+    function addClass(className) {
+        return el => el.classList.add(className);
+    }
+
+    function removeClass(className) {
+        return el => el.classList.remove(className);
+    }
+
+    function getNodeIdFromDOM(el, type) {
+        const isNode = el && el.classList.contains(type);
+        if (!isNode) return;
+        return el.getAttribute('id');
+    }
+
+    function clearHighlight() {
+      forAll(document.getElementById('graphDiv'), '.hl', removeClass('hl'));
+    }
+
+    function handeClick(event) {
+        if(!graph) return;
+
+        const nodeId = getNodeIdFromDOM(event.target, 'tooltip');
+        if (!nodeId) return;
+
+        window.location = paperUrl + tooltip.id;
+    }
 </script>
 
 <style>
 	:global(svg){
+        @apply z-0;
+        @apply relative;
 		@apply h-screen;
 		@apply w-screen;
+    }
+	:global(canvas){
+		@apply h-screen;
+		@apply w-screen;
+    }
+
+    :global(path.hl) {
+        stroke: RGB(51, 182, 121);
+        stroke-width: 2px;
+    }
+
+    :global(.tooltip) {
+        pointer-events: none;
+        transform: translate(-50%, 0);
+        white-space: nowrap;
     }
 </style>
