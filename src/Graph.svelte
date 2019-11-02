@@ -280,7 +280,7 @@
     function handeClick(event) {
         if(!graph) return;
 
-        const nodeId = getNodeIdFromDOM(event.target, 'tooltip');
+        const nodeId = getNodeIdFromDOM(event.target, 'node');
         if (!nodeId) return;
 
         window.location = paperUrl + tooltip.id;
