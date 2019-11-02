@@ -12,7 +12,7 @@
     {/if}
 </div>
 
-<script>
+<script lang="javascript">
     import { onMount } from 'svelte';
     import { afterUpdate } from 'svelte';
     import Viva from './vivagraph.js';
@@ -75,36 +75,53 @@
         }
     }
 
-    function evaluatePaper(paperGraph, query) {
+    function evaluatePapers(paperGraph, query) {
         let evaluatePath = "/evaluate?expr=" + query + "&attributes=" + ['Id', 'Ti', 'AA.AuN', 'RId'].join();
 
         return fetchEvaluate(evaluatePath)
             .then(evaluation => {
-                let paperEval = evaluation.entities[0];
-                let paper = paperFromPaperEval(paperEval);
-                
-                paperGraph.papers.set(paper.id, paper);
+                let paperEvals = [];
 
-                return paperEval;
-            }).then(paperEval => {
-                if (paperEval.RId) {
-                    paperEval.RId = paperEval.RId.slice(0, maxReferenceChildren);
+                evaluation.entities.forEach(paperEval => {
+                    let paper = paperFromPaperEval(paperEval);
                     
-                    if (numberOfSentRequests + paperEval.RId.length > maxNumberOfRequests) {
-                        paperEval.RId = paperEval.RId.slice(0, maxNumberOfRequests - numberOfSentRequests);
-                    }
-                }
+                    paperGraph.papers.set(paper.id, paper);
 
-                if (paperEval.RId) {                    
-                    paperEval.RId.forEach(referencedPaperId => {
-                        if (!paperGraph.links.has(paperEval.Id)) {
-                            paperGraph.links.set(paperEval.Id, [referencedPaperId]);
-                        } else {
-                            paperGraph.links.get(paperEval.Id).push(referencedPaperId);
-                        }
+                    paperEvals.push(paperEval);
+                });
+
+
+                return paperEvals;
+            }).then(paperEvals => {
+                if (paperEvals && paperEvals.length > 0) {
+                    let requests = paperEvals.map(paperEval => {
+                        return new Promise(resolve => {
+                            if (paperEval.RId) {
+                                paperEval.RId = paperEval.RId.slice(0, maxReferenceChildren);
+                                
+                                if (numberOfSentRequests + paperEval.RId.length > maxNumberOfRequests) {
+                                    paperEval.RId = paperEval.RId.slice(0, maxNumberOfRequests - numberOfSentRequests);
+                                }
+
+                                if (paperEval.RId.length > 0) {                    
+                                    paperEval.RId.forEach(referencedPaperId => {
+                                        if (!paperGraph.links.has(paperEval.Id)) {
+                                            paperGraph.links.set(paperEval.Id, [referencedPaperId]);
+                                        } else {
+                                            paperGraph.links.get(paperEval.Id).push(referencedPaperId);
+                                        }
+                                    });
+                
+                                    resolve(evaluateRIds(paperGraph, paperEval));
+                                }
+                            }
+
+                            resolve(paperGraph);
+                        });
+
                     });
-
-                    return evaluateRIds(paperGraph, paperEval);
+                    
+                    return Promise.all(requests);
                 }
 
                 return [paperGraph];
@@ -113,19 +130,22 @@
                     paperGraph.papers = new Map([...paperGraph.papers, ...newPaperGraph.papers]);
                     paperGraph.links = new Map([...paperGraph.links, ...newPaperGraph.links]);
                 });
-            
+
                 return paperGraph;
             });
     }
 
     function evaluateRIds(paperGraph, paperEval) { 
-        let requests = paperEval.RId.map(referencedPaperId => {
-            return new Promise(resolve => {
-                resolve(evaluatePaper(paperGraph, `Id=${referencedPaperId}`));
-            });
-        });
+        let ids = '';
 
-        return Promise.all(requests);
+        paperEval.RId.forEach(referencedPaperId => {
+            ids += `Id=${referencedPaperId},`;
+        });
+        ids = ids.slice(0, -1);
+                
+        return new Promise(resolve => {
+            resolve(evaluatePapers(paperGraph, `Or(${ids})`));
+        });
     }
 
     function paperFromPaperEval(paperEval) {
