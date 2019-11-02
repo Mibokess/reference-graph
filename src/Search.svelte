@@ -114,6 +114,8 @@
     }
 
     function clickedPaper(paperId) {
+        titles = [];
+
         dispatch('clickedPaper', {
             text: paperId
         });

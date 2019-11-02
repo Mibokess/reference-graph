@@ -1,4 +1,4 @@
-<div>
+<div class="w-screen h-screen">
   {#if !subscriptionKey}
     <div class="flex justify-center w-full pt-16">
       <div class="max-w-xs md:max-w-md lg:max-w-xl flex-grow flex-shrink-0">
@@ -6,16 +6,21 @@
         <p>You can generate a new key <a class="text-blue-600" href="https://msr-apis.portal.azure-api.net/products/project-academic-knowledge">here.</a></p>
       </div>
     </div>
-  {:else if !clickedPaper}
-    <div class="flex justify-center w-full pt-16">
-      <h1 class="text-3xl font-light">Paper Graph</h1>
-    </div>
-    <div class="flex justify-center h-full w-full mt-8 md:mt-12 lg:mt-16">
-      <Search subscriptionKey={subscriptionKey} on:clickedPaper={createGraph}/>
-    </div>
   {:else}
-    <div>  
-      <Graph originalPaperId={originalPaperId} subscriptionKey={subscriptionKey}/>
+    <div>
+      {#if !clickedPaper}
+        <div class="flex justify-center w-full pt-16">
+          <h1 class="text-3xl font-light">Paper Graph</h1>
+        </div>
+      {/if}
+      <div class="w-full h-full">
+        <div class="flex justify-center mt-8">
+          <Search {subscriptionKey} on:clickedPaper={createGraph}/>
+        </div>
+        <div class="top-0 w-full h-full z-0">
+          <Graph {paperId} {subscriptionKey}/>
+        </div>
+      </div>
     </div>
   {/if}
 </div>
@@ -27,17 +32,16 @@
   import Graph from './Graph.svelte';
   
   let clickedPaper = false;
-  let originalPaperId = 40134741;
+  let paperId = 2119638333;
   let subscriptionKey;
 
   onMount(() => {
     subscriptionKey = getSubscriptionKey();
   });
 
-
   function createGraph(event) {
     clickedPaper = true;
-    originalPaperId = event.detail.text;
+    paperId = event.detail.text;
   }
 
   function getSubscriptionKey() {

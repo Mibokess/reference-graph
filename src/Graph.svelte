@@ -1,4 +1,4 @@
-{#if !graph}
+{#if !graphRendered}
     <div class="flex justify-center w-full pt-16">
       <h1 class="text-3xl font-light">Sending requests ({numberOfSentRequests})</h1>
     </div>
@@ -14,18 +14,22 @@
 
 <script>
     import { onMount } from 'svelte';
+    import { afterUpdate } from 'svelte';
     import Viva from './vivagraph.js';
     
-    export let originalPaperId = 40134741;
+    export let paperId;
+    export let currentPaperId = -1;
     export let subscriptionKey;
 
     const baseUrl = 'https://api.labs.cognitive.microsoft.com/academic/v1.0';
     const maxNumberOfRequests = 200;
-    const maxReferenceChildren = 10;
+    const maxReferenceChildren = 20;
     const paperUrl = 'https://academic.microsoft.com/paper/';
 
     let numberOfSentRequests = 0;
     let graph;
+    let renderer;
+    let graphRendered = false;
     let tooltip = {
         visible: false,
         text: '',
@@ -35,16 +39,25 @@
         y: 0
     }
 
-    onMount(() => {
-        loadGraph();
+    afterUpdate(() => {
+        if (currentPaperId != paperId) {
+            console.log('after')
+            loadGraph();
+            currentPaperId = paperId;
+        }
     });
 
     function loadGraph(){
+        if (graphRendered) {
+            graph.clear();
+            graphRendered = false;
+        }
+
         let paperGraph = { papers: new Map(), links: new Map() };
         
-        if (localStorage.getItem(originalPaperId) === null) {
-            evaluatePaper(paperGraph, `Id=${originalPaperId}`, 0).then(newPaperGraph => {
-                localStorage.setItem(`${originalPaperId}`, JSON.stringify({ 
+        if (localStorage.getItem(paperId) === null) {
+            evaluatePaper(paperGraph, `Id=${paperId}`, 0).then(newPaperGraph => {
+                localStorage.setItem(`${paperId}`, JSON.stringify({ 
                     papers: Array.from(newPaperGraph.papers.entries()), 
                     links: Array.from(newPaperGraph.links.entries()) 
                 }));
@@ -53,7 +66,7 @@
                 generateGraph(newPaperGraph.papers, newPaperGraph.links);
             });
         } else {
-            let localPaperGraph = JSON.parse(localStorage.getItem(`${originalPaperId}`));
+            let localPaperGraph = JSON.parse(localStorage.getItem(`${paperId}`));
             
             paperGraph.papers = new Map(localPaperGraph.papers);
             paperGraph.links = new Map(localPaperGraph.links);
@@ -153,12 +166,15 @@
     }
 
     function generateGraph(papers, links) {
-        graph = Viva.Graph.graph();
+        if (!graph) graph = Viva.Graph.graph();
 
         papers.forEach((paper, id, map) => {
             let imageUrl = 'test' //generateSVGStringFromPaper(paper);
-            graph.addNode(paper.id, { imageUrl : imageUrl, cardWidth: paper.cardWidth, cardHeight: paper.cardHeight, title: paper.title, id: paper.id, author: paper.author });
+            graph.addNode(paper.id, { imageUrl : imageUrl, cardWidth: paper.cardWidth, cardHeight: paper.cardHeight, title: paper.title, id: paper.id, author: paper.author, numberOfChildren:  links.has(paper.id) ? links.get(paper.id).length : 0 });
         });
+
+        let root = graph.getNode(0);
+        if (root) root.isPinned = true;
         
         links.forEach((papersReferenced, paperId, map) => {
             papersReferenced.map(referencedPaperId => {
@@ -171,8 +187,8 @@
         graphics.node((node) => {
             return Viva.Graph
                 .svg('rect')
-                    .attr('width', 6)
-                    .attr('height', 6)
+                    .attr('width', 6 + node.data.numberOfChildren * 0.4)
+                    .attr('height', 6 + node.data.numberOfChildren * 0.4)
                     .attr('id', node.data.id)
                     .attr('fill', '#1E90FF')
                     .attr('class', 'node')
@@ -182,13 +198,22 @@
                 nodeUI.attr('x', pos.x - 3).attr('y', pos.y - 3);
             });
 
-        let renderer = Viva.Graph.View.renderer(graph, {
-            container: document.getElementById('graphDiv'),
-            graphics : graphics,
-        });
-        renderer.run();
+        if (!graphRendered && !renderer) {
+            renderer = Viva.Graph.View.renderer(graph, {
+                container: document.getElementById('graphDiv'),
+                graphics : graphics,
+            });
 
-        document.getElementById(originalPaperId).setAttribute('fill', '#012587');
+            renderer.run();
+        } else {
+            console.log('rerender')
+            renderer.rerender();
+        }
+
+        if (document.getElementById(paperId) != null) document.getElementById(paperId).setAttribute('fill', '#012587');
+
+        graphRendered = true;
+        numberOfSentRequests = 0;
     }
 
     function generateSVGStringFromPaper(paper) {
@@ -289,7 +314,7 @@
 
 <style>
 	:global(svg){
-        @apply z-0;
+        @apply z-10;
         @apply relative;
 		@apply h-screen;
 		@apply w-screen;
