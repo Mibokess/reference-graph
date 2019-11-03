@@ -12,15 +12,15 @@
         </div>
       </div>
     {:else} 
-      <div class="w-full h-full">
+      <div class="w-full">
         <div class="flex justify-center mt-8">
           <Search {subscriptionKey} on:clickedPaper={createGraph}/>
         </div>
-        <div class="top-0 w-full h-full z-0">
-          <Graph {paperId} {subscriptionKey} maxNumberOfRequests={!clickedPaper ? 20 : 100}/>
-        </div>
       </div>
     {/if}
+    <div class="top-0 w-full h-full z-0">
+      <Graph {paperId} {subscriptionKey} maxNumberOfRequests={!clickedPaper ? 20 : 100}/>
+    </div>
 </div>
 
 <script>
