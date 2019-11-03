@@ -14,11 +14,11 @@
         </div>
       {/if}
       <div class="w-full h-full">
-        <div class="flex justify-center mt-8">
+        <div class="flex justify-center {!clickedPaper ? 'mt-0' : 'mt-8'}">
           <Search {subscriptionKey} on:clickedPaper={createGraph}/>
         </div>
         <div class="top-0 w-full h-full z-0">
-          <Graph {paperId} {subscriptionKey}/>
+          <Graph {paperId} {subscriptionKey} maxNumberOfRequests={!clickedPaper ? 20 : 100}/>
         </div>
       </div>
     </div>
@@ -32,7 +32,7 @@
   import Graph from './Graph.svelte';
   
   let clickedPaper = false;
-  let paperId = 2119638333;
+  let paperId = 40134741;
   let subscriptionKey;
 
   onMount(() => {

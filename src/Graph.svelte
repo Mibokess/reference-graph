@@ -1,9 +1,9 @@
-{#if !graphRendered}
+{#if !graphRendered && maxNumberOfRequests != 20}
     <div class="flex justify-center w-full pt-16">
       <h1 class="text-3xl font-light">Sending requests ({numberOfSentRequests})</h1>
     </div>
 {/if}
-<div id="graphDiv" on:mousemove={handleMouseMove} on:click={handeClick}>
+<div id="graphDiv" on:mousemove={handleMouseMove} on:click={handleClick}>
     {#if tooltip.visible}
         <div class="tooltip z-10 absolute rounded shadow-xl bg-white px-4 py-2 max-w-4xl" style="left: {tooltip.x}px; top: {tooltip.y - 50}px">
             <p class="text-lg font-bold text-center capitalize overflow-hidden">{tooltip.title}</p>
@@ -20,10 +20,11 @@
     export let paperId;
     export let currentPaperId = -1;
     export let subscriptionKey;
+    export let maxNumberOfRequests;
 
     const baseUrl = 'https://api.labs.cognitive.microsoft.com/academic/v1.0';
-    const maxNumberOfRequests = 200;
-    const maxReferenceChildren = 20;
+    const maxReferenceChildren = 10;
+    const maxRecursionDepth = 5;
     const paperUrl = 'https://academic.microsoft.com/paper/';
 
     let numberOfSentRequests = 0;
@@ -38,6 +39,8 @@
         x: 0,
         y: 0
     }
+
+    let hasMouseDown = false;
 
     afterUpdate(() => {
         if (currentPaperId != paperId) {
@@ -56,7 +59,7 @@
         let paperGraph = { papers: new Map(), links: new Map() };
         
         if (localStorage.getItem(paperId) === null) {
-            evaluatePaper(paperGraph, `Id=${paperId}`, 0).then(newPaperGraph => {
+            evaluatePapers(paperGraph, `Id=${paperId}`, 0).then(newPaperGraph => {
                 localStorage.setItem(`${paperId}`, JSON.stringify({ 
                     papers: Array.from(newPaperGraph.papers.entries()), 
                     links: Array.from(newPaperGraph.links.entries()) 
@@ -75,7 +78,7 @@
         }
     }
 
-    function evaluatePapers(paperGraph, query) {
+    function evaluatePapers(paperGraph, query, recursionDepth) {
         let evaluatePath = "/evaluate?expr=" + query + "&attributes=" + ['Id', 'Ti', 'AA.AuN', 'RId'].join();
 
         return fetchEvaluate(evaluatePath)
@@ -83,17 +86,19 @@
                 let paperEvals = [];
 
                 evaluation.entities.forEach(paperEval => {
-                    let paper = paperFromPaperEval(paperEval);
-                    
-                    paperGraph.papers.set(paper.id, paper);
+                    if (!paperGraph.papers.has(paperEval.Id)) {
+                        let paper = paperFromPaperEval(paperEval);
+                        
+                        paperGraph.papers.set(paper.id, paper);
 
-                    paperEvals.push(paperEval);
+                        paperEvals.push(paperEval);
+                    }
                 });
 
 
                 return paperEvals;
             }).then(paperEvals => {
-                if (paperEvals && paperEvals.length > 0) {
+                if (paperEvals && paperEvals.length > 0 && recursionDepth < maxRecursionDepth) {
                     let requests = paperEvals.map(paperEval => {
                         return new Promise(resolve => {
                             if (paperEval.RId) {
@@ -112,7 +117,7 @@
                                         }
                                     });
                 
-                                    resolve(evaluateRIds(paperGraph, paperEval));
+                                    resolve(evaluateRIds(paperGraph, paperEval, recursionDepth));
                                 }
                             }
 
@@ -135,7 +140,7 @@
             });
     }
 
-    function evaluateRIds(paperGraph, paperEval) { 
+    function evaluateRIds(paperGraph, paperEval, recursionDepth) { 
         let ids = '';
 
         paperEval.RId.forEach(referencedPaperId => {
@@ -144,7 +149,7 @@
         ids = ids.slice(0, -1);
                 
         return new Promise(resolve => {
-            resolve(evaluatePapers(paperGraph, `Or(${ids})`));
+            resolve(evaluatePapers(paperGraph, `Or(${ids})`, recursionDepth + 1));
         });
     }
 
@@ -186,33 +191,39 @@
     }
 
     function generateGraph(papers, links) {
-        if (!graph) graph = Viva.Graph.graph();
+        if (!graph) {
+            graph = Viva.Graph.graph();
+        }
 
         papers.forEach((paper, id, map) => {
-            let imageUrl = 'test' //generateSVGStringFromPaper(paper);
-            graph.addNode(paper.id, { imageUrl : imageUrl, cardWidth: paper.cardWidth, cardHeight: paper.cardHeight, title: paper.title, id: paper.id, author: paper.author, numberOfChildren:  links.has(paper.id) ? links.get(paper.id).length : 0 });
+            graph.addNode(paper.id, { 
+                cardWidth: paper.cardWidth, 
+                cardHeight: paper.cardHeight, 
+                title: paper.title, 
+                id: paper.id, 
+                author: paper.author, 
+                timesReferenced: timesReferenced(paper.id, links)
+            });
         });
 
-        let root = graph.getNode(0);
-        if (root) root.isPinned = true;
-        
         links.forEach((papersReferenced, paperId, map) => {
             papersReferenced.map(referencedPaperId => {
                 graph.addLink(paperId, referencedPaperId);
             });
         });
+        
+        let root = graph.getNode(paperId);
+        root.isPinned = true;
 
         let graphics = Viva.Graph.View.svgGraphics();
-        
-        graphics.node((node) => {
+        graphics.node(node => {
             return Viva.Graph
                 .svg('rect')
-                    .attr('width', 6 + node.data.numberOfChildren * 0.4)
-                    .attr('height', 6 + node.data.numberOfChildren * 0.4)
+                    .attr('width', 6 + Math.sqrt(node.data.timesReferenced * 20))
+                    .attr('height', 6 + Math.sqrt(node.data.timesReferenced * 20))
                     .attr('id', node.data.id)
                     .attr('fill', '#1E90FF')
                     .attr('class', 'node')
-                    .link(node.data.imageUrl); 
             })
             .placeNode((nodeUI, pos) => {
                 nodeUI.attr('x', pos.x - 3).attr('y', pos.y - 3);
@@ -222,6 +233,7 @@
             renderer = Viva.Graph.View.renderer(graph, {
                 container: document.getElementById('graphDiv'),
                 graphics : graphics,
+                interactive: 'drag scroll'
             });
 
             renderer.run();
@@ -234,6 +246,20 @@
 
         graphRendered = true;
         numberOfSentRequests = 0;
+    }
+
+    function timesReferenced(paperId, links) {
+        let counter = 0;
+
+        (Array.from(links.values())).forEach(references => {
+            if (references) {
+                references.map(reference => {
+                    if (paperId == reference) counter++;
+                });
+            }
+        });
+
+        return counter;
     }
 
     function generateSVGStringFromPaper(paper) {
@@ -273,23 +299,6 @@
         return url;
     }
 
-    function handleMouseMove(event) {
-        if(!graph) return;
-
-        const nodeId = getNodeIdFromDOM(event.target, 'node');
-        if (!nodeId) {
-            tooltip.visible = false;
-            return;
-        }
-
-        clearHighlight();
-
-        forAll(document.getElementById('graphDiv'), `path[data-from="${nodeId}"], path[data-to="${nodeId}"]`, addClass('hl'));
-
-        const data = graph.getNode(nodeId).data;
-        showTooltip(event.target, data);
-    }
-
     function showTooltip(el, data) {
         const rect = el.getBoundingClientRect();
         tooltip.title = data.title;
@@ -322,13 +331,30 @@
       forAll(document.getElementById('graphDiv'), '.hl', removeClass('hl'));
     }
 
-    function handeClick(event) {
+    function handleMouseMove(event) {
+        if(!graph) return;
+
+        const nodeId = getNodeIdFromDOM(event.target, 'node');
+        if (!nodeId) {
+            tooltip.visible = false;
+            return;
+        }
+
+        clearHighlight();
+
+        forAll(document.getElementById('graphDiv'), `path[data-from="${nodeId}"], path[data-to="${nodeId}"]`, addClass('hl'));
+
+        const data = graph.getNode(nodeId).data;
+        showTooltip(event.target, data);
+    }
+
+    function handleClick(event) {
         if(!graph) return;
 
         const nodeId = getNodeIdFromDOM(event.target, 'node');
         if (!nodeId) return;
 
-        window.location = paperUrl + tooltip.id;
+        window.open(paperUrl + tooltip.id);
     }
 </script>
 
