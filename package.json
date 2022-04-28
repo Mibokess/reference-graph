@@ -36,7 +36,7 @@
     "start:dev": "sirv public --dev"
   },
   "dependencies": {
-    "cross-fetch": "^3.0.4",
+    "cross-fetch": "^3.1.5",
     "d3-force": "^2.0.1",
     "elgrapho": "^2.4.0",
     "es6-promise": "^4.2.8",
